@@ -2,7 +2,7 @@
 # Derek Fujimoto
 # Aug 2018
 
-import os,datetime,sys
+import os,glob,sys
 from bdata import bdata
 from tabulate import tabulate
 
@@ -120,9 +120,9 @@ def file_checkup(area='bnmr',run=-1,year=-1):
     
     # get latest run 
     if(run < 0):
-        files = os.listdir(dirt)
+        files = glob.glob(dirt+'*.msr')#os.listdir(dirt)
         files.sort()
-        run = int(os.path.splitext(files[-1])[0])
+        run = int(os.path.splitext(os.path.basename(files[-1]))[0])
     
     # open data file
     bd = bdata(run,year)
