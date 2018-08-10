@@ -192,7 +192,7 @@ def file_checkup(area='bnmr',run=-1,year=-1):
             try:
                 l.pop(l.index(v.title))
             except ValueError as errmsg:
-                print(errmsg)
+                print('\033[93m',errmsg,'\033[0m')
         
         print(tk.upper()+' VARIABLES ')#+('='*60))
         print(tabulate(camp,headers=['Quantity','Value','Units']),end='\n\n')
