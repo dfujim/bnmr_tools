@@ -85,6 +85,12 @@ lst_nqr = {
         '/Sample/read_B',
         '/Sample/setpoint',
         '/Sample/set_current',
+        '/Cryo_oven/current_read_1',
+        '/Cryo_oven/read_A',
+        '/Cryo_oven/read_B',
+        '/Cryo_oven/read_C',
+        '/Cryo_oven/setpoint_1',
+        '/Shield/read_1'
         ],
     'epics':[
         'ILE2:BIAS15:RDVOL',
