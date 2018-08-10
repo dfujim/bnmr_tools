@@ -109,6 +109,7 @@ def file_checkup(area='bnmr',run=-1,year=-1):
     
     # get data directory
     dirt = os.environ[area.upper()+'_ARCHIVE']
+    if dirt[-1] != '/': dirt+='/'
     
     # get latest year with data
     if year < 0:
