@@ -34,26 +34,41 @@ lst_nmr = {
         'ITE:BIAS:RDVOL'            ,
         'ITW:BIAS:RDVOL'            ,
         ],
-    'ppg':[
-        'PPG/PPG1f/constant time between cycles',
-        'PPG/PPG1f/use defaults for midbnmr',
-        'PPG/PPG1f/Bin width (ms)',
-        'PPG/PPG1f/psm fREF enabled',
-        'PPG/PPG1f/psm fREF scale factor',
-        'PPG/PPG1f/frequency increment (Hz)',
-        'PPG/PPG1f/frequency start (Hz)',
-        'PPG/PPG1f/frequency stop (Hz)',
-        'PPG/PPG1f/Enable helicity flipping',
-        'PPG/PPG1f/Helicity flip sleep(ms)',
-        'PPG/PPG1f/init mode file',
-        'PPG/PPG1f/PPG mode',
-        'PPG/PPG1f/num bins',
-        'PPG/PPG1f/num cycles per supercycle',
-        'PPG/PPG1f/number of midbnmr regions',
-        'PPG/PPG1f/psm onef enabled',
-        'PPG/PPG1f/psm onef scale factor',
-        'PPG/PPG1f/DAQ service time (ms)',
-        ]
+    'ppg':{'1f':[
+            'PPG/PPG1f/constant time between cycles',
+            'PPG/PPG1f/use defaults for midbnmr',
+            'PPG/PPG1f/Bin width (ms)',
+            'PPG/PPG1f/psm fREF enabled',
+            'PPG/PPG1f/psm fREF scale factor',
+            'PPG/PPG1f/frequency increment (Hz)',
+            'PPG/PPG1f/frequency start (Hz)',
+            'PPG/PPG1f/frequency stop (Hz)',
+            'PPG/PPG1f/Enable helicity flipping',
+            'PPG/PPG1f/Helicity flip sleep(ms)',
+            'PPG/PPG1f/init mode file',
+            'PPG/PPG1f/PPG mode',
+            'PPG/PPG1f/num bins',
+            'PPG/PPG1f/num cycles per supercycle',
+            'PPG/PPG1f/number of midbnmr regions',
+            'PPG/PPG1f/psm onef enabled',
+            'PPG/PPG1f/psm onef scale factor',
+            'PPG/PPG1f/DAQ service time (ms)',
+            ],
+        '20':[
+            'PPG/PPG20/e20 beam off dwelltimes',
+            'PPG/PPG20/e20 beam on dwelltimes',
+            'PPG/PPG20/Dwell time (ms)',
+            'PPG/PPG20/e20 rf frequency (Hz)',
+            'PPG/PPG20/Enable helicity flipping',
+            'PPG/PPG20/Helicity flip sleep (ms)',
+            'PPG/PPG20/init mode file',
+            'PPG/PPG20/PPG mode',
+            'PPG/PPG20/e20 prebeam dwelltimes',
+            'PPG/PPG20/Enable RF',
+            'PPG/PPG20/RFon duration (dwelltimes)',
+            'PPG/PPG20/RFon delay (dwelltimes)', 
+        ]            
+    }
 }
 
 lst_nqr = {
@@ -79,21 +94,41 @@ lst_nqr = {
         'ITW:BIAS:RDVOL',
         'ITE:BIAS:RDVOL',
         ],
-    'ppg':[
-        'PPG/PPG20/e20 beam off dwelltimes',
-        'PPG/PPG20/e20 beam on dwelltimes',
-        'PPG/PPG20/Dwell time (ms)',
-        'PPG/PPG20/e20 rf frequency (Hz)',
-        'PPG/PPG20/Enable helicity flipping',
-        'PPG/PPG20/helicity flip sleep (ms)',
-        'PPG/PPG20/init mode',
-        'PPG/PPG20/PPG mode',
-        'PPG/PPG20/e20 prebeam dwelltimes',
-        'PPG/PPG20/RFon duration (dwelltimes)',
-        'PPG/PPG20/RFon delay (dwelltimes)',
-        'PPG/PPG20/DAQ drives sampleref',
-        'PPG/PPG20/enable sampleref mode',
-        ]
+    'ppg':{'1f':[
+            'PPG/PPG1f/constant time between cycles',
+            'PPG/PPG1f/use defaults for midbnmr',
+            'PPG/PPG1f/Bin width (ms)',
+            'PPG/PPG1f/psm fREF enabled',
+            'PPG/PPG1f/psm fREF scale factor',
+            'PPG/PPG1f/frequency increment (Hz)',
+            'PPG/PPG1f/frequency start (Hz)',
+            'PPG/PPG1f/frequency stop (Hz)',
+            'PPG/PPG1f/Enable helicity flipping',
+            'PPG/PPG1f/Helicity flip sleep(ms)',
+            'PPG/PPG1f/init mode file',
+            'PPG/PPG1f/PPG mode',
+            'PPG/PPG1f/num bins',
+            'PPG/PPG1f/num cycles per supercycle',
+            'PPG/PPG1f/number of midbnmr regions',
+            'PPG/PPG1f/psm onef enabled',
+            'PPG/PPG1f/psm onef scale factor',
+            'PPG/PPG1f/DAQ service time (ms)',
+            ],
+        '20':[
+            'PPG/PPG20/e20 beam off dwelltimes',
+            'PPG/PPG20/e20 beam on dwelltimes',
+            'PPG/PPG20/Dwell time (ms)',
+            'PPG/PPG20/e20 rf frequency (Hz)',
+            'PPG/PPG20/Enable helicity flipping',
+            'PPG/PPG20/Helicity flip sleep (ms)',
+            'PPG/PPG20/init mode file',
+            'PPG/PPG20/PPG mode',
+            'PPG/PPG20/e20 prebeam dwelltimes',
+            'PPG/PPG20/Enable RF',
+            'PPG/PPG20/RFon duration (dwelltimes)',
+            'PPG/PPG20/RFon delay (dwelltimes)', 
+        ]            
+    }
 }
 
 
@@ -137,7 +172,11 @@ def file_checkup(area='bnmr',run=-1,year=-1):
     
         keys = list(lst.keys())
         keys.sort()
-        l = area_lst[tk]
+        
+        if tk != 'ppg':
+            l = area_lst[tk]
+        else:
+            l = area_lst[tk][bd.mode]
         
         camp = []
         for k in keys:
