@@ -110,9 +110,11 @@ def file_checkup(area='bnmr',run=-1,year=-1):
     # get data directory
     dirt = os.environ[area.upper()+'_ARCHIVE']
     
-    # get latest year
+    # get latest year with data
     if year < 0:
-        year = max(map(int,os.listdir(dirt)))
+        year = datetime.datetime.now().year
+        while str(year) not in os.listdir(dirt):
+            year -= 1
         dirt += '%d/' % year 
     
     # get latest run 
