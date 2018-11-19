@@ -5,6 +5,7 @@
 import pandas as pd
 import numpy as np
 from scipy.integrate import simps as integrate
+import matplotlib.pyplot as plt
 
 # =========================================================================== #
 class srim(object):
@@ -19,6 +20,8 @@ class srim(object):
             avg_straggle_rad:   radial stdev in Ang
             backscatter:        number of backscattered ions
             energy:             implantation energy in keV
+            histo:              DataFrame with range histogram
+            hist_norm:          Area under histo
             ion_species:        atomic type
             ion_quantity:       number of implanted ions
             target:             target info
@@ -34,7 +37,6 @@ class srim(object):
         
         self.get_range(fetchdir+'/'+range_txt)
                 
-
     # ======================================================================= #
     def get_range(self,filename):
         
@@ -115,8 +117,23 @@ class srim(object):
             depth.append(float(l[0]))
             ions.append(float(l[1]))
         
-        self.histo = pd.DataFrame({'depth_bin':depth,'ion_count':ions}).set_index('depth_bin')
+        self.histo = pd.DataFrame({'depth_bin':depth,'ion_count':ions})
         
         # histogram normalization
-        self.hist_norm = integrate(self.histo['ion_count'].values,self.histo.index.values)
+        self.hist_norm = integrate(self.histo['ion_count'].values,
+                                   self.histo['depth_bin'].values)
         
+    # ======================================================================= #
+    def interp_hist(self,x):
+        """Interpolate histogram to get probability values for any depth"""
+        
+        # get data
+        bins = self.histo['depth_bin'].values
+        hist = self.histo['ion_count'].values/self.hist_norm
+
+        # interpolate
+        return np.interp(x,bins,hist)
+    
+    # ======================================================================= #
+    def draw(self):
+        plt.plot(self.histo['depth_bin'],self.histo['ion_count']/self.hist_norm)
