@@ -77,7 +77,6 @@ class fitresult(object):
         y = y[tag]
         dy = dy[tag]
         
-        
         # get number of parameters
         npar = len(self.par)
         
@@ -130,6 +129,13 @@ def depth_fit(E,y,dy,fn,impl_mean_fn,impl_strag_fn,**fitargs):
             integrand = lambda x : fn(x,*par)*gaussian(x,impl_mean_fn(E),impl_strag_fn(E))
             out.append(quad(integrand,0,np.inf)[0])
         return np.array(out)
+
+    # get number of input parameters
+    if 'p0' not in fitargs.keys():
+        par = fn.__code__.co_varnames[1:]
+        npar = len(par)
+        print('Detected %d input parameters (%s)' % (npar,str(par)))
+        fitargs['p0'] = np.ones(npar)
 
     # do the fit
     par,cov = curve_fit(fitfn,E,y,sigma=dy,**fitargs)
