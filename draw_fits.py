@@ -12,49 +12,64 @@ from scipy.optimize import curve_fit
 from skimage import filters
 from skimage.draw import circle_perimeter
 from skimage.feature import canny
-from skimage.transform import hough_circle, hough_circle_peaks
-from matplotlib.patches import Circle
+from skimage.transform import hough_circle, hough_circle_peaks,rescale
+from matplotlib.patches import Circle,Ellipse
 
-def get_data(filename,blacklevel=0,filterlevel=0,):
+show_options = {'origin':'lower',
+                'interpolation':'nearest'}
+
+def get_data(filename,filterlevel=0,rescale_pixels=True):
     """
         Get xy data from fits file. Values are brightness of pixel. 
         
-        filename:   name of file to open, or list of files
-        blacklevel: value of a "black" pixel, everything below this is 
-                    considered oversaturated
-        filterlevel:value to set to black, for fitting purposes
+        filename:       name of file to open, or list of files
+        filterlevel:    value to set to black, for fitting purposes
+        rescale_pixels: if True, rescale pixels such that pixels are square
         
         Output:     2D array of values, or list of 2D arrays
     """
     if type(filename) is str:
         filename = os.path.join(os.getcwd(),filename)
         fid = fits.open(filename)[0]
-        dat = fid.data
+        data = fid.data
     else:
         fname = filename[0]
         fid = fits.open(fname)[0]
-        dat = fid.data
+        data = fid.data
         
         for fname in filename[1:]:
             fid = fits.open(fname)[0]
-            dat += fid.data
+            data += fid.data
         
     # fix bad pixels: set to max
-    dat[dat<blacklevel] = np.max(dat)
+    blacklevel = fid.header['BZERO']
+    data[data<blacklevel] = np.max(data)
     
     # clean: remove lowest values
     if filterlevel:
-        dat[dat<filterlevel] = np.min(dat[dat!=0])
+        data[data<filterlevel] = blacklevel
     
-    return dat
+    # get exposure
+    exposed = fid.header['EXPOSURE']
+    
+    # rescale image to correct pixel size asymmetry
+    if rescale_pixels:
+        aspect = fid.header['YPIXSZ']/fid.header['XPIXSZ']
+        
+        if aspect > 1:
+            data = rescale(data,(aspect,1),order=1,multichannel=False,
+                           preserve_range=True) 
+        else:
+            data = rescale(data,(1,1/aspect),order=1,multichannel=False,
+                           preserve_range=True) 
+    
+    return data
 
-def draw(filename,blacklevel=0,filterlevel=0,alpha=1,cmap='Greys',**kwargs):
+def draw(filename,filterlevel=0,alpha=1,cmap='Greys',rescale_pixels=True,**kwargs):
     """
         Draw fits file to matplotlib figure
         
         filename:   name of fits file to read
-        blacklevel: value of a "black" pixel, everything below this is 
-                    considered oversaturated
         filterlevel:value to set to black, for fitting purposes
         alpha:      draw transparency
         cmap:       colormap
@@ -73,19 +88,16 @@ def draw(filename,blacklevel=0,filterlevel=0,alpha=1,cmap='Greys',**kwargs):
     """
     
     # get raw data
-    data = get_data(filename,blacklevel=blacklevel,filterlevel=filterlevel)
+    data = get_data(filename,filterlevel=filterlevel,rescale_pixels=rescale_pixels)
     
     # draw
-    plt.imshow(data,alpha=alpha,origin='lower',interpolation='nearest',
-               cmap=cmap+'_r')
+    plt.imshow(data,alpha=alpha,cmap=cmap+'_r',**show_options)
 
-def draw_edges(filename,blacklevel=0,filterlevel=0,sigma=1,alpha=1,cmap='Greys',**kwargs):
+def draw_edges(filename,filterlevel=0,sigma=1,alpha=1,cmap='Greys',rescale_pixels=True,**kwargs):
     """
         Draw fits file to matplotlib figure
         
         filename:   name of fits file to read
-        blacklevel: value of a "black" pixel, everything below this is 
-                    considered oversaturated
         filterlevel:value to set to black, for fitting purposes
         sigma:      Standard deviation of the Gaussian filter.
         alpha:      draw transparency
@@ -105,22 +117,19 @@ def draw_edges(filename,blacklevel=0,filterlevel=0,sigma=1,alpha=1,cmap='Greys',
     """
     
     # get raw data
-    data = get_data(filename,blacklevel=blacklevel,filterlevel=filterlevel)
+    data,aspect = get_data(filename,filterlevel=filterlevel,rescale_pixels=rescale_pixels)
     
     # get edges
-    edges = canny(data,sigma=sigma, low_threshold=0, high_threshold=50)
+    edges = canny(data,sigma=sigma,low_threshold=0, high_threshold=1)
     
     # draw
-    plt.imshow(edges.astype(int),alpha=alpha,origin='lower',interpolation='nearest',
-               cmap=cmap)
+    plt.imshow(edges.astype(int),alpha=alpha,cmap=cmap,**show_options)
 
-def draw_sobel(filename,blacklevel=0,filterlevel=0,alpha=1,cmap='Greys',**kwargs):
+def draw_sobel(filename,filterlevel=0,alpha=1,cmap='Greys',rescale_pixels=True,**kwargs):
     """
         Draw fits file to matplotlib figure
         
         filename:   name of fits file to read
-        blacklevel: value of a "black" pixel, everything below this is 
-                    considered oversaturated
         filterlevel:value to set to black, for fitting purposes
         alpha:      draw transparency
         cmap:       colormap
@@ -139,19 +148,16 @@ def draw_sobel(filename,blacklevel=0,filterlevel=0,alpha=1,cmap='Greys',**kwargs
     """
     
     # get raw data
-    data = get_data(filename,blacklevel=blacklevel,filterlevel=filterlevel)
+    data = get_data(filename,filterlevel=filterlevel,rescale_pixels=rescale_pixels)
     
     # draw
-    plt.imshow(filters.sobel(data),alpha=alpha,origin='lower',
-                interpolation='nearest',cmap=cmap)
+    plt.imshow(filters.sobel(data),alpha=alpha,cmap=cmap,**show_options)
     
-def draw_contour(filename,blacklevel=0,ncontours=5,filterlevel=0,alpha=1,cmap='Greys',**kwargs):
+def draw_contour(filename,ncontours=5,filterlevel=0,alpha=1,cmap='Greys',rescale_pixels=True,**kwargs):
     """
         Draw contours of fits file to matplotlib figure
         
         filename:   name of fits file to read
-        blacklevel: value of a "black" pixel, everything below this is 
-                    considered oversaturated
         ncontours:  number of contours to draw
         filterlevel:value to set to black, for fitting purposes
         alpha:      draw transparency
@@ -159,36 +165,29 @@ def draw_contour(filename,blacklevel=0,ncontours=5,filterlevel=0,alpha=1,cmap='G
     """
     
     # get raw data
-    data = get_data(filename)
-    
-    # fix bad pixels: set to max
-    data[data<blacklevel] = np.max(data)
-    
-    # clean: remove lowest values
-    if filterlevel:
-        data[data<filterlevel] = np.min(data[data!=0])
+    data = get_data(filename,filterlevel=filterlevel)
     
     # draw
     X,Y = np.meshgrid(*tuple(map(np.arange,data.shape[::-1])))
     ax = plt.gca()
-    ax.contour(X,Y,data,levels=ncontours,cmap=cmap+'_r',origin='lower')
+    ax.contour(X,Y,data,levels=ncontours,cmap=cmap+'_r',**show_options)
     
-def detect_circles(filename,radii,ncircles=1,sigma=1,blacklevel=0,filterlevel=0,
-                   draw=False,**kwargs):
+def detect_circles(filename,rad_range,ncircles=1,sigma=1,filterlevel=0,
+                   draw=False,rescale_pixels=True,**kwargs):
     """
         Detect circles in image
         
         filename:   name of fits file to read
-        radii:      specify raidus ranges (lo,hi)
-        blacklevel: value of a "black" pixel, everything below this is 
-                    considered oversaturated
+        rad_range:  specify raidus search range (lo,hi)
         filterlevel:value to set to black, for fitting purposes
         alpha:      draw transparency
         cmap:       colormap
+        
+        returns: (center_x,center_y,radius)
     """
     
     # get raw data
-    data = get_data(filename,blacklevel=blacklevel,filterlevel=filterlevel)
+    data = get_data(filename,filterlevel=filterlevel,rescale_pixels=rescale_pixels)
     
     # get edges
     edges = canny(data,sigma=sigma, low_threshold=0, high_threshold=1)
@@ -203,10 +202,8 @@ def detect_circles(filename,radii,ncircles=1,sigma=1,blacklevel=0,filterlevel=0,
     
     # draw
     if draw:
-        plt.imshow(edges.astype(int),origin='lower',interpolation='nearest',
-                   cmap='Greys')
-        plt.imshow(data,origin='lower',interpolation='nearest',
-                   cmap='Greens_r',alpha=0.5)
+        plt.imshow(edges.astype(int),cmap='Greys',**show_options)
+        plt.imshow(data,cmap='Greens_r',alpha=0.5,**show_options)
         for center_y, center_x, radius in zip(cy, cx, radii):
             circle = Circle((center_x,center_y),radius,
                         facecolor='none',linewidth=1,edgecolor='r')
@@ -215,19 +212,17 @@ def detect_circles(filename,radii,ncircles=1,sigma=1,blacklevel=0,filterlevel=0,
     # return 
     return (cx,cy,radii)
     
-def get_center(filename,blacklevel=0,filterlevel=0,draw=False,**kwargs):
+def get_center(filename,filterlevel=0,draw=False,rescale_pixels=True,**kwargs):
     """
         Get image center of mass
         
         filename:   name of fits file to read
         radii:      specify raidus ranges (lo,hi)
-        blacklevel: value of a "black" pixel, everything below this is 
-                    considered oversaturated
         filterlevel:value to set to black, for fitting purposes
     """
     
     # get raw data
-    data = get_data(filename,blacklevel=blacklevel,filterlevel=filterlevel)
+    data = get_data(filename,filterlevel=filterlevel,rescale_pixels=rescale_pixels)
     
     # invert
     data2 = np.copy(data)
@@ -261,8 +256,7 @@ def get_center(filename,blacklevel=0,filterlevel=0,draw=False,**kwargs):
         plt.legend()
         
         plt.figure()
-        plt.imshow(data,origin='lower',interpolation='nearest',
-                   cmap='Greys_r')
+        plt.imshow(data,cmap='Greys_r',**show_options)
         plt.plot(parx[0],pary[0],'x')
             
     # return 
@@ -270,19 +264,19 @@ def get_center(filename,blacklevel=0,filterlevel=0,draw=False,**kwargs):
 
 def gaussian2D(x,y,x0,y0,sigmax,sigmay,amp,offset):
     """Gaussian in 2D"""
-    return amp*np.exp(-((x-x0)**2/(2*sigmax**2)+(y-y0)**2/(2*sigmay**2)))+offset
+    return amp*np.exp(-((x-x0)**2/(2*sigmax**2)-(y-y0)**2/(2*sigmay**2)))+offset
     
-def fit(filename,function,blacklevel=0,filterlevel=0,**fitargs):
+def fit(filename,function,filterlevel=0,rescale_pixels=True,**fitargs):
     """
         Fit function to fits file
     """
     
     # get data
-    data = get_data(filename,blacklevel=blacklevel,filterlevel=filterlevel)
+    data = get_data(filename,filterlevel=filterlevel,rescale_pixels=rescale_pixels)
     
     # flatten the image
-    shape = dat.shape
-    flat = np.concatenate(dat)
+    shape = data.shape
+    flat = np.concatenate(data)
     
     # get number of fit parameters (first two are x,y)
     npar = len(function.__code__.co_varnames)-2
@@ -319,7 +313,7 @@ def draw_2dfit(x0,y0,sigmax,sigmay,*par):
     
     for i in range(1,4):
         circle = Ellipse((x0,y0),sigmay*i,sigmax*i,edgecolor=color,
-                        facecolor='none',linewidth=2)
+                        facecolor='none',linewidth=1)
         ax.add_patch(circle)
     
     
