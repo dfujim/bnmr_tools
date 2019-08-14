@@ -7,17 +7,13 @@ import numpy as np
 
 import matplotlib.pyplot as plt
 from matplotlib.patches import Circle,Ellipse
-
-from astropy.visualization import astropy_mpl_style
-from astropy.utils.data import get_pkg_data_filename
 from astropy.io import fits
-
 from scipy.optimize import curve_fit
 
 from skimage import filters
 from skimage.feature import canny
 from skimage.transform import hough_circle,hough_circle_peaks
-from skimage.transform import probabilistic_hough_line,hough_line_peaks
+from skimage.transform import probabilistic_hough_line
 from skimage.transform import rescale
 
 show_options = {'origin':'lower',
@@ -261,7 +257,7 @@ def detect_circles(filename,rad_range,n=1,sigma=1,blacklevel=0,
     # return 
     return (cx,cy,radii)
     
-def get_center(filename,blacklevel=0,draw=False,rescale_pixels=True,**kwargs):
+def get_center(filename,blacklevel=0,draw=True,rescale_pixels=True,**kwargs):
     """
         Get image center of mass
         
@@ -303,6 +299,45 @@ def get_center(filename,blacklevel=0,draw=False,rescale_pixels=True,**kwargs):
             
     # return 
     return (parx[0],pary[0],parx[1],pary[1])
+
+def get_cm(filename,blacklevel=0,draw=True,rescale_pixels=True,**kwargs):
+    """
+        Get image center of mass
+        
+        filename:   name of fits file to read
+        radii:      specify raidus ranges (lo,hi)
+        blacklevel: value to set to black, all pixels of lower value raised 
+                    to this level
+    """
+    
+    # get raw data
+    data = get_data(filename,blacklevel=blacklevel,rescale_pixels=rescale_pixels)
+    
+    # compress
+    sumx = np.sum(data,axis=0)
+    sumy = np.sum(data,axis=1)
+    
+    # estimate center with weighted average
+    sumx = np.sum(data,axis=0)
+    sumy = np.sum(data,axis=1)
+    
+    sumx -= min(sumx)
+    sumy -= min(sumy)
+    
+    nsumx = len(sumx)
+    nsumy = len(sumy)
+    
+    cx = np.average(np.arange(nsumx),weights=sumx)
+    cy = np.average(np.arange(nsumy),weights=sumy)
+
+    # draw
+    if draw:
+        plt.figure()
+        plt.imshow(data,cmap='Greys_r',**show_options)
+        plt.plot(cx,cy,'x')
+            
+    # return 
+    return (cx,cy)
 
 def gaussian2D(x,y,x0,y0,sigmax,sigmay,amp,offset):
     """Gaussian in 2D"""
