@@ -2,18 +2,23 @@
 # Derek Fujimoto
 # July 2019
 
+import os
+import numpy as np
+
 import matplotlib.pyplot as plt
+from matplotlib.patches import Circle,Ellipse
+
 from astropy.visualization import astropy_mpl_style
 from astropy.utils.data import get_pkg_data_filename
 from astropy.io import fits
-import os
-import numpy as np
+
 from scipy.optimize import curve_fit
+
 from skimage import filters
-from skimage.draw import circle_perimeter
 from skimage.feature import canny
-from skimage.transform import hough_circle, hough_circle_peaks,rescale
-from matplotlib.patches import Circle,Ellipse
+from skimage.transform import hough_circle,hough_circle_peaks
+from skimage.transform import probabilistic_hough_line,hough_line_peaks
+from skimage.transform import rescale
 
 show_options = {'origin':'lower',
                 'interpolation':'nearest'}
@@ -48,9 +53,8 @@ def get_data(filename,blacklevel=0,rescale_pixels=True):
         if aspect > 1:      resc = (aspect,1)
         else:               resc = (1,1/aspect)
         
-        data = rescale(data,resc,order=3,multichannel=False,
-                           preserve_range=True) 
-        
+        data = rescale(data,resc,order=3,multichannel=False,preserve_range=True) 
+    
     return data
 
 def draw(filename,blacklevel=0,alpha=1,cmap='Greys',rescale_pixels=True,**kwargs):
@@ -127,12 +131,12 @@ def draw_sobel(filename,blacklevel=0,alpha=1,cmap='Greys',rescale_pixels=True,**
     # draw
     plt.imshow(filters.sobel(data),alpha=alpha,cmap=cmap,**show_options)
     
-def draw_contour(filename,ncontours=5,blacklevel=0,alpha=1,cmap='Greys',rescale_pixels=True,**kwargs):
+def draw_contour(filename,n=5,blacklevel=0,alpha=1,cmap='Greys',rescale_pixels=True,**kwargs):
     """
         Draw contours of fits file to matplotlib figure
         
         filename:   name of fits file to read
-        ncontours:  number of contours to draw
+        n:          number of contours to draw
         blacklevel: value to set to black, all pixels of lower value raised 
                     to this level
         alpha:      draw transparency
@@ -145,10 +149,75 @@ def draw_contour(filename,ncontours=5,blacklevel=0,alpha=1,cmap='Greys',rescale_
     # draw
     X,Y = np.meshgrid(*tuple(map(np.arange,data.shape[::-1])))
     ax = plt.gca()
-    ax.contour(X,Y,data,levels=ncontours,cmap=cmap+'_r',**show_options)
+    ax.contour(X,Y,data,levels=n,cmap=cmap+'_r',**show_options)
     
-def detect_circles(filename,rad_range,ncircles=1,sigma=1,blacklevel=0,
-                   draw=False,rescale_pixels=True,**kwargs):
+def detect_lines(filename,sigma=1,min_length=50,min_gap=3,theta=None,n=np.inf,
+                 blacklevel=0,draw=True,rescale_pixels=True,**kwargs):
+    """
+        Detect lines in image
+        
+        filename:   name of fits file to read
+        blacklevel: value to set to black, all pixels of lower value raised 
+                    to this level
+        n:          number of line s to find
+        min_length: minimum length of lines to find
+        min_gap:    minimum gap between pixels to avoid breaking the line    
+        theta:      list of acceptable angles for the lines to point
+        
+        returns: list of points ((x0,y0),(x1,y1)) to identify the end points of 
+                 the lines
+    """
+    
+    # get raw data
+    data = get_data(filename,blacklevel=blacklevel,rescale_pixels=rescale_pixels)
+    
+    # get edges
+    edges = canny(data,sigma=sigma, low_threshold=0, high_threshold=1)
+    
+    # select lines
+    lines = probabilistic_hough_line(edges,threshold=10,line_length=min_length,
+                                     line_gap=min_gap,theta=theta)
+    # draw
+    if draw:
+        plt.figure()
+        plt.imshow(data,alpha=1,cmap='Greys_r',**show_options)
+        edges = np.ma.masked_where(~edges,edges.astype(int))
+        plt.imshow(edges,alpha=1,cmap='Reds_r',**show_options)
+        
+        for line in lines:
+            plt.plot(*tuple(np.array(line).T))
+            
+    # return 
+    return lines+2
+
+def detect_hlines(filename,sigma=1,min_length=50,min_gap=3,n=np.inf,
+                 blacklevel=0,draw=True,rescale_pixels=True,**kwargs):
+    """
+        Detect horizontal lines in image
+        
+        filename:   name of fits file to read
+        blacklevel: value to set to black, all pixels of lower value raised 
+                    to this level
+        n:          number of line s to find
+        min_length: minimum length of lines to find
+        min_gap:    minimum gap between pixels to avoid breaking the line    
+        
+        returns: list of y positions to identify each line
+    """
+    
+    # make a set of ranges about pi/2
+    theta = np.linspace(np.pi/2-0.01,np.pi/2+0.01,30)
+    
+    # get lines 
+    lines = detect_lines(filename=filename,sigma=sigma,min_length=min_length,
+                         min_gap=min_gap,n=n,blacklevel=blacklevel,draw=draw,
+                         rescale_pixels=rescale_pixels,theta=theta,**kwargs)
+    
+    # get y values of lines 
+    return [l[0][1] for l in lines]
+            
+def detect_circles(filename,rad_range,n=1,sigma=1,blacklevel=0,
+                   draw=True,rescale_pixels=True,**kwargs):
     """
         Detect circles in image
         
@@ -158,6 +227,7 @@ def detect_circles(filename,rad_range,ncircles=1,sigma=1,blacklevel=0,
                     to this level
         alpha:      draw transparency
         cmap:       colormap
+        n:          number of circles to find
         
         returns: (center_x,center_y,radius)
     """
@@ -174,7 +244,7 @@ def detect_circles(filename,rad_range,ncircles=1,sigma=1,blacklevel=0,
     
     # select cicles 
     accums, cx, cy, radii = hough_circle_peaks(hough_res, hough_radii,
-                                                total_num_peaks=ncircles)
+                                                total_num_peaks=n)
     
     # draw
     if draw:
@@ -237,10 +307,10 @@ def get_center(filename,blacklevel=0,draw=False,rescale_pixels=True,**kwargs):
 def gaussian2D(x,y,x0,y0,sigmax,sigmay,amp,offset):
     """Gaussian in 2D"""
     return amp*np.exp(-((x-x0)**2/(2*sigmax**2)-(y-y0)**2/(2*sigmay**2)))+offset
-    
-def fit(filename,function,blacklevel=0,rescale_pixels=True,**fitargs):
+        
+def fit2D(filename,function,blacklevel=0,rescale_pixels=True,**fitargs):
     """
-        Fit function to fits file
+        Fit general function to fits file
     """
     
     # get data
@@ -261,6 +331,7 @@ def fit(filename,function,blacklevel=0,rescale_pixels=True,**fitargs):
     
     # flatten the funtion 
     def fitfn(xy,*pars):
+        
         # get pixel indexes
         x = np.arange(shape[0])
         y = np.arange(shape[1])
@@ -273,7 +344,7 @@ def fit(filename,function,blacklevel=0,rescale_pixels=True,**fitargs):
     # fit
     return curve_fit(fitfn,np.arange(len(flat)),flat,**fitargs)
     
-def draw_2dfit(x0,y0,sigmax,sigmay,*par):
+def draw_2dfit(x0,y0,sigmax,sigmay,*par_excess):
     """Draw the fit function on the image as contours"""
     
     # draw the center
@@ -288,5 +359,39 @@ def draw_2dfit(x0,y0,sigmax,sigmay,*par):
                         facecolor='none',linewidth=1)
         ax.add_patch(circle)
     
+def fit_gaussian2D(filename,center,blacklevel=0,rescale_pixels=True,draw_output=True,**fitargs):
+    """
+        Fit 2D gaussian to image
+    """
     
+    # get data 
+    data = get_data(filename,blacklevel=blacklevel,rescale_pixels=rescale_pixels)
+    
+    # estimate center with weighted average
+    sumx = np.sum(data,axis=0)
+    sumy = np.sum(data,axis=1)
+    
+    sumx -= min(sumx)
+    sumy -= min(sumy)
+    
+    nsumx = len(sumx)
+    nsumy = len(sumy)
+    
+    cx = np.average(np.arange(nsumx),weights=sumx)
+    cy = np.average(np.arange(nsumy),weights=sumy)
+    
+    # fit 
+    p0 = (*center,10,10,10,10)
+    bounds = ((0,0,1,1,0,0),
+              (nsumx,nsumy,nsumx,nsumy,np.inf,np.inf))
+    par,cov = fit2D(filename,gaussian2D,blacklevel=blacklevel,
+                  rescale_pixels=rescale_pixels,p0=p0,**fitargs)
+    std = np.diag(cov)**0.5
+    
+    # draw output
+    if draw_output:    
+        draw(filename,blacklevel=blacklevel,rescale_pixels=rescale_pixels)
+        draw_2dfit(*par)
+    
+    return(par,std)
     
