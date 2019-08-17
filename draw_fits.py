@@ -6,10 +6,14 @@ import os
 import numpy as np
 
 import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
 from matplotlib.patches import Circle,Ellipse
 from astropy.io import fits
 from scipy.optimize import curve_fit
 
+import warnings
+
+import skimage as ski
 from skimage import filters
 from skimage.feature import canny
 from skimage.transform import hough_circle,hough_circle_peaks
@@ -53,7 +57,27 @@ def get_data(filename,blacklevel=0,rescale_pixels=True):
     
     return data
 
-def draw(filename,blacklevel=0,alpha=1,cmap='Greys',rescale_pixels=True,**kwargs):
+def mask_data(data,mask=None):
+    """
+        Mask image data
+        
+        data:       2D np array 
+        mask:       (x,y,r) specifying center and radius of circle to mask on
+    """
+    
+    # masking
+    if mask is not None: 
+        window = np.ones(data.shape)
+        rr,cc = ski.draw.circle(mask[1],mask[0],mask[2],shape=data.shape)
+        window[rr,cc] = 0
+        data = np.ma.array(data,mask=window)
+    else:
+        data = np.ma.asarray(data)
+    
+    return data
+    
+def draw(filename,blacklevel=0,alpha=1,cmap='Greys',rescale_pixels=True,mask=None,
+         **kwargs):
     """
         Draw fits file to matplotlib figure
         
@@ -78,12 +102,13 @@ def draw(filename,blacklevel=0,alpha=1,cmap='Greys',rescale_pixels=True,**kwargs
     
     # get raw data
     data = get_data(filename,blacklevel=blacklevel,rescale_pixels=rescale_pixels)
+    data = mask_data(data,mask)
     
     # draw
     plt.imshow(data,alpha=alpha,cmap=cmap+'_r',**show_options)
 
 def draw_edges(filename,blacklevel=0,sigma=1,alpha=1,cmap='Greys',
-               rescale_pixels=True,draw_image=True,**kwargs):
+               rescale_pixels=True,draw_image=True,mask=None,**kwargs):
     """
         Draw fits file to matplotlib figure
         
@@ -98,14 +123,17 @@ def draw_edges(filename,blacklevel=0,sigma=1,alpha=1,cmap='Greys',
     
     # get raw data
     data = get_data(filename,blacklevel=blacklevel,rescale_pixels=rescale_pixels)
+    data = mask_data(data,mask)
     
     # get edges
-    edges = canny(data,sigma=sigma,low_threshold=0, high_threshold=1)
+    data2 = np.copy(data)
+    data2[data.mask] = blacklevel
+    edges = canny(data2,sigma=sigma,low_threshold=0, high_threshold=1)
     
     # draw
     if draw_image:
-        plt.imshow(data,alpha=1,cmap='Greys_r',**show_options)
         edges = np.ma.masked_where(~edges,edges.astype(int))
+        plt.imshow(data,alpha=1,cmap='Greys_r',**show_options)
         plt.imshow(edges,alpha=1,cmap='Reds_r',**show_options)
     else:
         plt.imshow(edges.astype(int),alpha=alpha,cmap=cmap,**show_options)
@@ -257,7 +285,7 @@ def detect_circles(filename,rad_range,n=1,sigma=1,blacklevel=0,
     # return 
     return (cx,cy,radii)
     
-def get_center(filename,blacklevel=0,draw=True,rescale_pixels=True,**kwargs):
+def get_center(filename,blacklevel=0,draw=True,rescale_pixels=True,mask=None,**kwargs):
     """
         Get image center of mass
         
@@ -265,42 +293,68 @@ def get_center(filename,blacklevel=0,draw=True,rescale_pixels=True,**kwargs):
         radii:      specify raidus ranges (lo,hi)
         blacklevel: value to set to black, all pixels of lower value raised 
                     to this level
+        mask:       (x,y,r) specifying center and radius of circle to mask on
     """
     
     # get raw data
     data = get_data(filename,blacklevel=blacklevel,rescale_pixels=rescale_pixels)
+    fid = fits.open(filename)[0]
+    black = max(blacklevel,fid.header['BZERO'])
     
+    # mask
+    data = mask_data(data,mask)
+        
     # compress
-    sumx = np.sum(data,axis=0)
-    sumy = np.sum(data,axis=1)
+    sumx = np.ma.mean(data,axis=0)
+    sumy = np.ma.mean(data,axis=1)
+    
+    # shift baseline
+    sumx -= black
+    sumy -= black
+    
+    # normalize
+    normx = np.ma.max(sumx)
+    normy = np.ma.max(sumy)
+    
+    sumx /= normx
+    sumy /= normy
     
     # fit with gaussian
-    gaus = lambda x,x0,sig,amp,base : amp*np.exp(-((x-x0)/sig)**2)+base
-    parx,cov = curve_fit(gaus,np.arange(len(sumx)),sumx,p0=(180,10,10,sumx[0]))
+    gaus = lambda x,x0,sig,amp,base : amp*np.exp(-((x-x0)/(2*sig))**2)+base
+    
+    parx,cov = curve_fit(gaus,np.arange(len(sumx)),sumx,p0=(180,10,1,0),
+                            bounds=((0,0,0,-np.inf),np.inf))
     stdx = np.diag(cov)**0.5
     
-    pary,cov = curve_fit(gaus,np.arange(len(sumy)),sumy,p0=(260,10,10,sumy[0]))
+    pary,cov = curve_fit(gaus,np.arange(len(sumy)),sumy,p0=(260,10,1,0),
+                            bounds=((0,0,0,-np.inf),np.inf))
     stdy = np.diag(cov)**0.5               
     
     # draw
     if draw:
         plt.figure()
-        plt.plot(sumx/parx[3],label='x')
-        plt.plot(sumy/pary[3],label='y')
+        plt.plot(sumx*normx,label='x')
+        plt.plot(sumy*normy,label='y')
         
         fitx = np.linspace(0,max(len(sumx),len(sumy)),5000)
-        plt.plot(fitx,gaus(fitx,*parx)/parx[3],color='k')
-        plt.plot(fitx,gaus(fitx,*pary)/pary[3],color='k')     
+        plt.plot(fitx,gaus(fitx,*parx)*normx,color='k')
+        plt.plot(fitx,gaus(fitx,*pary)*normy,color='k')     
         plt.legend()
         
         plt.figure()
         plt.imshow(data,cmap='Greys_r',**show_options)
-        plt.plot(parx[0],pary[0],'x')
+        plt.errorbar(parx[0],pary[0],xerr=2*parx[1],yerr=2*pary[1],fmt='o',
+                      fillstyle='none',markersize=9)
+                      
+        if pary[1] > 2 and parx[1] > 2:
+            plt.ylim(pary[0]-pary[1]*6,pary[0]+pary[1]*6)   
+            plt.xlim(parx[0]-parx[1]*6,parx[0]+parx[1]*6)
             
     # return 
     return (parx[0],pary[0],parx[1],pary[1])
 
-def get_cm(filename,blacklevel=0,draw=True,rescale_pixels=True,**kwargs):
+def get_cm(filename,blacklevel=0,draw=True,rescale_pixels=True,mask=None,
+           **kwargs):
     """
         Get image center of mass
         
@@ -312,23 +366,21 @@ def get_cm(filename,blacklevel=0,draw=True,rescale_pixels=True,**kwargs):
     
     # get raw data
     data = get_data(filename,blacklevel=blacklevel,rescale_pixels=rescale_pixels)
+    data = mask_data(data,mask)
     
     # compress
-    sumx = np.sum(data,axis=0)
-    sumy = np.sum(data,axis=1)
+    sumx = np.ma.mean(data,axis=0)
+    sumy = np.ma.mean(data,axis=1)
     
     # estimate center with weighted average
-    sumx = np.sum(data,axis=0)
-    sumy = np.sum(data,axis=1)
-    
-    sumx -= min(sumx)
-    sumy -= min(sumy)
+    sumx -= np.ma.min(sumx)
+    sumy -= np.ma.min(sumy)
     
     nsumx = len(sumx)
     nsumy = len(sumy)
     
-    cx = np.average(np.arange(nsumx),weights=sumx)
-    cy = np.average(np.arange(nsumy),weights=sumy)
+    cx = np.ma.average(np.arange(nsumx),weights=sumx)
+    cy = np.ma.average(np.arange(nsumy),weights=sumy)
 
     # draw
     if draw:
@@ -339,9 +391,22 @@ def get_cm(filename,blacklevel=0,draw=True,rescale_pixels=True,**kwargs):
     # return 
     return (cx,cy)
 
-def gaussian2D(x,y,x0,y0,sigmax,sigmay,amp,offset):
-    """Gaussian in 2D"""
-    return amp*np.exp(-((x-x0)**2/(2*sigmax**2)-(y-y0)**2/(2*sigmay**2)))+offset
+def gaussian2D(x,y,x0,y0,sigmax,sigmay,amp,theta=0):
+    """Gaussian in 2D - from wikipedia"""
+    
+    ct2 = np.cos(theta)**2
+    st2 = np.sin(theta)**2
+    s2t = np.sin(2*theta)
+    
+    sx = sigmax**2
+    sy = sigmay**2
+    
+    a = 0.5*(ct2/sx + st2/sy)
+    b = 0.25*s2t*(-1/sx + 1/sy)
+    c = 0.5*(st2/sx + ct2/sy)
+    
+    return amp*np.exp(-(a*np.square(x-x0) + 2*b*(x-x0)*(y-y0) + c*np.square(y-y0)))
+
         
 def fit2D(filename,function,blacklevel=0,rescale_pixels=True,**fitargs):
     """
@@ -351,9 +416,10 @@ def fit2D(filename,function,blacklevel=0,rescale_pixels=True,**fitargs):
     # get data
     data = get_data(filename,blacklevel=blacklevel,rescale_pixels=rescale_pixels)
     
+    data = data[:300,:200]
+    
     # flatten the image
-    shape = data.shape
-    flat = np.concatenate(data)
+    flat = np.ravel(data)
     
     # get number of fit parameters (first two are x,y)
     npar = len(function.__code__.co_varnames)-2
@@ -364,37 +430,38 @@ def fit2D(filename,function,blacklevel=0,rescale_pixels=True,**fitargs):
     zero = np.min(flat)
     flat -= zero
     
+    # normalize
+    flat /= np.max(flat)
+    
     # flatten the funtion 
-    def fitfn(xy,*pars):
-        
-        # get pixel indexes
-        x = np.arange(shape[0])
-        y = np.arange(shape[1])
-        
-        # return flattened output
-        xarr,yarr = np.meshgrid(x,y)
-        output = [function(ix,iy,*pars) for ix,iy in zip(xarr,yarr)]
-        return np.concatenate(output)
+    def fitfn(xy,*pars):    
+        output = function(*xy,*pars)
+        return np.ravel(output)
     
     # fit
-    return curve_fit(fitfn,np.arange(len(flat)),flat,**fitargs)
+    x = np.indices(data.shape)[::-1]
+    return curve_fit(fitfn,x,flat,**fitargs)
     
-def draw_2dfit(x0,y0,sigmax,sigmay,*par_excess):
+def draw_2dfit(filename,fn,*pars,blacklevel=0,rescale_pixels=True):
     """Draw the fit function on the image as contours"""
     
-    # draw the center
-    plotted = plt.plot(x0,y0,'x')
-    color = plotted[0].get_color()
+    data = get_data(filename,blacklevel=blacklevel,rescale_pixels=rescale_pixels)
     
-    # draw contours
+    # get function image
+    x = np.arange(data.shape[1])    
+    y = np.arange(data.shape[0])    
+    gauss = np.zeros((len(y),len(x)))
+    for i in y:
+        gauss[i-y[0],:] = fn(x,i,*pars)
+
+    # draw image
+    # ~ draw(filename,blacklevel=blacklevel,rescale_pixels=rescale_pixels)
+    X,Y = np.meshgrid(x,y)
     ax = plt.gca()
+    ax.contour(X,Y,gauss,levels=10,cmap='jet')
     
-    for i in range(1,4):
-        circle = Ellipse((x0,y0),sigmay*i,sigmax*i,edgecolor=color,
-                        facecolor='none',linewidth=1)
-        ax.add_patch(circle)
-    
-def fit_gaussian2D(filename,center,blacklevel=0,rescale_pixels=True,draw_output=True,**fitargs):
+def fit_gaussian2D(filename,blacklevel=0,rescale_pixels=True,
+                   draw_output=True):
     """
         Fit 2D gaussian to image
     """
@@ -402,31 +469,27 @@ def fit_gaussian2D(filename,center,blacklevel=0,rescale_pixels=True,draw_output=
     # get data 
     data = get_data(filename,blacklevel=blacklevel,rescale_pixels=rescale_pixels)
     
-    # estimate center with weighted average
-    sumx = np.sum(data,axis=0)
-    sumy = np.sum(data,axis=1)
-    
-    sumx -= min(sumx)
-    sumy -= min(sumy)
-    
-    nsumx = len(sumx)
-    nsumy = len(sumy)
-    
-    cx = np.average(np.arange(nsumx),weights=sumx)
-    cy = np.average(np.arange(nsumy),weights=sumy)
+    # estimate moments https://scipy-cookbook.readthedocs.io/items/FittingData.html
+    total = data.sum()
+    X, Y = np.indices(data.shape)
+    x = (X*data).sum()/total
+    y = (Y*data).sum()/total
+    col = data[:, int(y)]
+    width_x = np.sqrt(np.abs((np.arange(col.size)-y)**2*col).sum()/col.sum())
+    row = data[int(x), :]
+    width_y = np.sqrt(np.abs((np.arange(row.size)-x)**2*row).sum()/row.sum()) 
     
     # fit 
-    p0 = (*center,10,10,10,10)
-    bounds = ((0,0,1,1,0,0),
-              (nsumx,nsumy,nsumx,nsumy,np.inf,np.inf))
+    p0 = (x,y,width_x,width_y,1,0)
     par,cov = fit2D(filename,gaussian2D,blacklevel=blacklevel,
-                  rescale_pixels=rescale_pixels,p0=p0,**fitargs)
+                  rescale_pixels=rescale_pixels,p0=p0)
     std = np.diag(cov)**0.5
     
     # draw output
-    if draw_output:    
+    if draw_output:
+        plt.figure()    
         draw(filename,blacklevel=blacklevel,rescale_pixels=rescale_pixels)
-        draw_2dfit(*par)
+        draw_2dfit(filename,gaussian2D,*par)
     
     return(par,std)
     
