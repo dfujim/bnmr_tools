@@ -4,14 +4,16 @@
 
 import os
 import numpy as np
+import warnings
 
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 from matplotlib.patches import Circle,Ellipse
-from astropy.io import fits
-from scipy.optimize import curve_fit
 
-import warnings
+from astropy.io import fits
+
+from scipy.optimize import curve_fit
+from scipy.integrate import dblquad
 
 import skimage as ski
 from skimage import filters
@@ -407,7 +409,6 @@ def gaussian2D(x,y,x0,y0,sigmax,sigmay,amp,theta=0):
     
     return amp*np.exp(-(a*np.square(x-x0) + 2*b*(x-x0)*(y-y0) + c*np.square(y-y0)))
 
-        
 def fit2D(filename,function,blacklevel=0,rescale_pixels=True,**fitargs):
     """
         Fit general function to fits file
@@ -442,26 +443,24 @@ def fit2D(filename,function,blacklevel=0,rescale_pixels=True,**fitargs):
     x = np.indices(data.shape)[::-1]
     return curve_fit(fitfn,x,flat,**fitargs)
     
-def draw_2dfit(filename,fn,*pars,blacklevel=0,rescale_pixels=True):
-    """Draw the fit function on the image as contours"""
-    
-    data = get_data(filename,blacklevel=blacklevel,rescale_pixels=rescale_pixels)
+def draw_2Dfit(shape,fn,*pars,levels=10,cmap='jet'):
+    """Draw the fit function as contours"""
     
     # get function image
-    x = np.arange(data.shape[1])    
-    y = np.arange(data.shape[0])    
+    x = np.arange(shape[1])    
+    y = np.arange(shape[0])    
     gauss = np.zeros((len(y),len(x)))
     for i in y:
         gauss[i-y[0],:] = fn(x,i,*pars)
 
     # draw image
-    # ~ draw(filename,blacklevel=blacklevel,rescale_pixels=rescale_pixels)
     X,Y = np.meshgrid(x,y)
     ax = plt.gca()
-    ax.contour(X,Y,gauss,levels=10,cmap='jet')
+    CS = ax.contour(X,Y,gauss,levels=levels,cmap=cmap)
+    return CS
     
 def fit_gaussian2D(filename,blacklevel=0,rescale_pixels=True,
-                   draw_output=True):
+                   draw_output=True,**kwargs):
     """
         Fit 2D gaussian to image
     """
@@ -489,7 +488,44 @@ def fit_gaussian2D(filename,blacklevel=0,rescale_pixels=True,
     if draw_output:
         plt.figure()    
         draw(filename,blacklevel=blacklevel,rescale_pixels=rescale_pixels)
-        draw_2dfit(filename,gaussian2D,*par)
+        draw_2dfit(data.shape,gaussian2D,*par,**kwargs)
     
     return(par,std)
+    
+def get_gaussian2D_overlap(ylo,yhi,xlo,xhi,x0,y0,sx,sy,amp,theta=0):
+    """
+        Get integral of gaussian2D PDF within some interval, normalized to the 
+        area such that the returned overlap is the event probability within the 
+        range. 
+        
+        ylo:    lower integration bound [outer] (float)
+        yhi:    upper integration bound [outer] (float)
+        xlo:    lower integration bound [inner] (lambda function)
+        xlhi:   upper integration bound [inner] (lambda function)
+        x0,y0:  gaussian mean location
+        sx,sy:  standard deviation
+        amp:    unused in favour of normalized amplitude (present for ease of use)
+        theta:  angle of rotation
+        
+            integration is: 
+                
+                int_y int_x G(x,y) dx dy
+        
+        
+        returns overlap as given by dblquad
+    """
+    
+    # get normalized amplitude
+    # https://en.wikipedia.org/wiki/Gaussian_function
+    a = 0.5*(np.cos(theta)/sx)**2 + 0.5*(np.sin(theta)/sy)**2
+    b = 0.25*-(np.sin(theta)/sx)**2 + 0.25*(np.sin(theta)/sy)**2
+    c = 0.5*(np.sin(theta)/sx)**2 + 0.5*(np.cos(theta)/sy)**2
+    amp = np.sqrt(a*c-b**2)/np.pi
+    
+    # make PDF
+    gaus = lambda x,y: gaussian2D(x,y,x0,y0,sx,sy,amp,theta)
+    
+    # integrate: fraction of beam overlap
+    return dblquad(gaus,ylo,yhi,xlo,xhi)[0]
+    
     
