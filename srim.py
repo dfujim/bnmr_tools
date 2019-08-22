@@ -27,9 +27,6 @@ class srim(object):
             target:             target info
             transmitted:        number of transmitted ions
             version:            SRIM version
-            
-            
-            
     """
     
     # ======================================================================= #

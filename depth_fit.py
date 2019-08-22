@@ -141,7 +141,7 @@ def depth_fit(E,y,dy,fn,impl_mean_fn,impl_strag_fn,**fitargs):
     par,cov = curve_fit(fitfn,E,y,sigma=dy,**fitargs)
     
     # make output
-    return fitresult(par,cov,fn,E,y,dy)
+    return fitresult(par,cov,fn,impl_mean_fn(E),y,dy)
     
     
     
