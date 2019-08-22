@@ -5,13 +5,14 @@
 import bdata as bd
 import matplotlib.pyplot as plt
 
-def draw(run,year,rebin=1,freq_shift=True,base_shift=True,label='run'):
+def draw(run,year,rebin=1,freq_shift=True,base_shift=True,base_norm=True,label='run'):
     """
         runlist:    list of runs to draw or int
         yearlist:   list of years corresponding to run, or int
         rebin:      rebin factor, list or int
         freq_shift: if true, shift frequencies to ppm, fixed to window center
         base_shift: if true, baseline shift to zero
+        base_norm:  if true, normalize by baseline
         label:      bdata attribute to set to label
     """
     
@@ -44,6 +45,12 @@ def draw(run,year,rebin=1,freq_shift=True,base_shift=True,label='run'):
         else:
             bshift = 0
             
+        # get baseline normalization
+        if base_norm:
+            bnorm = a[0]
+        else:
+            bnorm = 1
+            
         # get x values
         if freq_shift:
             fshift = np.mean(f)
@@ -53,12 +60,15 @@ def draw(run,year,rebin=1,freq_shift=True,base_shift=True,label='run'):
         
         # draw
         # ~ plt.errorbar(x,a-bshift,da,fmt='.',label=getattr(d,label))
-        plt.plot(x,a-bshift,label=getattr(d,label))
+        plt.plot(x,(a-bshift)/bnorm,label=getattr(d,label))
     
     # plot elements
-    if base_shift:  plt.ylabel(r'Asym-Asym($\nu_\mathrm{min}$)')
-    else:           plt.ylabel('Asymmetry')
+    if base_shift:  ylabel = r'Asym-Asym($\nu_\mathrm{min}$)'
+    else:           ylabel = 'Asymmetry'
     
+    if base_norm:   ylabel = '(' + ylabel + r')/Asym($\nu_\mathrm{min}$)'
+    plt.ylabel(ylabel)
+
     if freq_shift:  plt.xlabel('Frequency Shifted to Window Center (PPM)')
     else:           plt.xlabel('Frequency (MHz)')
 
