@@ -7,7 +7,6 @@ import numpy as np
 import warnings
 
 import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
 from matplotlib.patches import Circle,Ellipse
 
 from astropy.io import fits
@@ -59,6 +58,14 @@ def get_data(filename,blacklevel=0,rescale_pixels=True):
     
     return data
 
+def get_header(filename):
+    """
+        Get header info as a dictionary
+    """
+    filename = os.path.join(os.getcwd(),filename)
+    fid = fits.open(filename)[0]
+    return fid.header
+    
 def mask_data(data,mask=None):
     """
         Mask image data
@@ -529,3 +536,4 @@ def get_gaussian2D_overlap(ylo,yhi,xlo,xhi,x0,y0,sx,sy,amp,theta=0):
     return dblquad(gaus,ylo,yhi,xlo,xhi)[0]
     
     
+
