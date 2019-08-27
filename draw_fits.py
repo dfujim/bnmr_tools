@@ -495,7 +495,7 @@ def fit_gaussian2D(filename,blacklevel=0,rescale_pixels=True,
     if draw_output:
         plt.figure()    
         draw(filename,blacklevel=blacklevel,rescale_pixels=rescale_pixels)
-        draw_2dfit(data.shape,gaussian2D,*par,**kwargs)
+        draw_2Dfit(data.shape,gaussian2D,*par,**kwargs)
     
     return(par,std)
     
