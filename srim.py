@@ -6,6 +6,7 @@ import pandas as pd
 import numpy as np
 from scipy.integrate import simps as integrate
 import matplotlib.pyplot as plt
+import os
 
 # =========================================================================== #
 class srim(object):
@@ -32,7 +33,7 @@ class srim(object):
     # ======================================================================= #
     def __init__(self,fetchdir='.',range_txt='RANGE.txt'):
         
-        self.get_range(fetchdir+'/'+range_txt)
+        self.get_range(os.path.join(fetchdir,range_txt))
                 
     # ======================================================================= #
     def get_range(self,filename):
@@ -93,7 +94,7 @@ class srim(object):
             if i==1:
                 line_spl = line.split()
                 if line_spl[2][1:] != ';':
-                    self.transmitted = int(line_spl[2][1:])
+                    self.transmitted = int(line_spl[2][1:-1])
                 else:
                     self.transmitted = 0
                 
