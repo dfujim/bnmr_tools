@@ -2,9 +2,9 @@
 
 ### `beta_averaging`
 
-Code originally written by rmlm for T1 average with uncorrelated errors. 
+Code originally written by rmlm for T1 average with uncorrelated errors.
 
-Functions: 
+Functions:
 
 ```python
 t1avg(T1, beta)                       # t1 avg
@@ -13,16 +13,16 @@ dt1avg(T1, dT1, beta, dbeta)          # error
 
 ### `file_checkup`
 
-File inspector for start of beam. Make sure variables are logged properly. 
+File inspector for start of beam. Make sure variables are logged properly.
 
-Functions: 
+Functions:
 
 ```python
 
 file_checkup(area='bnmr',run=-1,year=-1)
 ```
 
-As a command line tool: 
+As a command line tool:
 
 ```
 python3 file_checkup [area] [run] [year]
@@ -32,15 +32,15 @@ python3 file_checkup [area] [run] [year]
 
 Turn bnmroffice export fit file into a python dictionary
 
-Functions: 
+Functions:
 
-```python 
+```python
 parse_bnmroffice_fit(filename)
 ```
 
 ### `draw_1f_superimpose`
 
-Draw 1f runs, superimposed. Options for shifting by baseline or window center for comparison. 
+Draw 1f runs, superimposed. Options for shifting by baseline or window center for comparison.
 
 Functions:
 
@@ -55,3 +55,15 @@ def draw(run,year,rebin=1,freq_shift=True,base_shift=True,label='run'):
         label:      bdata attribute to set to label
     """
 ```
+
+### `get_experimenter_names.py`
+
+Find all author names for a given experiment
+
+Call from the command line as an executable.
+
+```bash
+get_experimenter_names.py exp_number
+```
+
+Prints as output a list of experimenters for each year and the number of runs in which they participated. 
