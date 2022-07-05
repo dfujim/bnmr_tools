@@ -14,11 +14,10 @@ def read_striptool(filename):
 
     # check if csv or dat file
     is_csv = ',' in header
-    if is_csv: 
-        header = 'Date,' + header
-    else:
+    
+    # parse header
+    if not is_csv: 
         header = 'Date\t' + header
-        
     header = header.replace(' [', '[')
 
     # join with contents
@@ -31,11 +30,16 @@ def read_striptool(filename):
         df = pd.read_csv(StringIO(contents), sep='\s+', na_values='BadVal')
 
     # convert to datetime
-    df['datetime'] = df.apply(lambda x: f"{x['Date']} {x['Time']}", axis='columns')
+    if is_csv:
+        df['datetime'] = df.apply(lambda x: f"{x['Time']}", axis='columns')
+    else:
+        df['datetime'] = df.apply(lambda x: f"{x['Date']} {x['Time']}", axis='columns')
+        df.drop(columns='Date', inplace=True)
+        
     df['time'] = pd.to_datetime(df['datetime'], format="%m/%d/%Y %H:%M:%S.%f")
 
     # set as index and drop other columns
     df.set_index('time', inplace=True)
-    df.drop(columns=['datetime', 'Time', 'Date'], inplace=True)
+    df.drop(columns=['datetime', 'Time'], inplace=True)
 
     return df
