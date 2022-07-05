@@ -12,15 +12,23 @@ def read_striptool(filename):
         header = fid.readline()
         contents = fid.read()
 
-    # Parse header
-    header = 'Date\t' + header
+    # check if csv or dat file
+    is_csv = ',' in header
+    if is_csv: 
+        header = 'Date,' + header
+    else:
+        header = 'Date\t' + header
+        
     header = header.replace(' [', '[')
 
     # join with contents
     contents = header + contents
 
     # parse to dataframe
-    df = pd.read_csv(StringIO(contents), sep='\s+', na_values='BadVal')
+    if is_csv:
+        df = pd.read_csv(StringIO(contents), na_values='BadVal')
+    else:
+        df = pd.read_csv(StringIO(contents), sep='\s+', na_values='BadVal')
 
     # convert to datetime
     df['datetime'] = df.apply(lambda x: f"{x['Date']} {x['Time']}", axis='columns')
